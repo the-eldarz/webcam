@@ -18,6 +18,13 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
 .btn.active{background:#ffd60a;color:#000;box-shadow:0 0 18px rgba(255,214,10,.55)}
 .btn.disabled{opacity:.35}
 
+.btn-text{background:rgba(255,255,255,.12);border:none;color:#fff;
+  padding:9px 14px;border-radius:10px;font-size:14px;cursor:pointer;
+  backdrop-filter:blur(10px);white-space:nowrap}
+.btn-text.primary{background:#0a84ff}
+.btn-text.danger{background:#ff3b30}
+.btn-text.hidden{display:none}
+
 #topbar{position:absolute;top:0;left:0;right:0;z-index:20;
   padding:calc(12px + env(safe-area-inset-top)) 14px 12px;
   display:flex;justify-content:flex-end;gap:10px;
@@ -51,8 +58,6 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
 #blackScreen.active{display:flex}
 #blackScreen .hint{color:#161616;font-size:13px;text-align:center;
   line-height:1.7;padding:20px;pointer-events:none}
-
-/* Подсказка-«ручка» для свайпа у правого края */
 #blackScreen .swipeHandle{position:absolute;right:2px;top:50%;
   transform:translateY(-50%);width:3px;height:70px;border-radius:2px;
   background:#141414;pointer-events:none}
@@ -60,15 +65,31 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
 #gallery{position:absolute;inset:0;z-index:200;background:#000;
   display:none;flex-direction:column}
 #gallery.active{display:flex}
-#galleryHeader{padding:calc(12px + env(safe-area-inset-top)) 16px 12px;
-  display:flex;align-items:center;gap:12px;border-bottom:1px solid #1a1a1a}
-#galleryHeader h2{margin:0;font-size:18px;flex:1}
+#galleryHeader{padding:calc(12px + env(safe-area-inset-top)) 12px 12px;
+  display:flex;align-items:center;gap:10px;border-bottom:1px solid #1a1a1a}
+#galleryHeader h2{margin:0;font-size:18px;flex:1;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+#galleryHeader .btn{width:44px;height:44px;font-size:20px}
+
 #galleryGrid{flex:1;overflow-y:auto;display:grid;
   grid-template-columns:repeat(3,1fr);gap:2px;padding:2px}
-.gitem{position:relative;aspect-ratio:1;background:#111;overflow:hidden;cursor:pointer}
-.gitem img,.gitem video{width:100%;height:100%;object-fit:cover;display:block}
+
+.gitem{position:relative;aspect-ratio:1;background:#111;overflow:hidden;cursor:pointer;
+  touch-action:manipulation}
+.gitem img,.gitem video{width:100%;height:100%;object-fit:cover;display:block;
+  pointer-events:none}
 .gitem .badge{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);
-  padding:2px 6px;border-radius:4px;font-size:10px}
+  padding:2px 6px;border-radius:4px;font-size:10px;pointer-events:none}
+.gitem .check{position:absolute;top:6px;left:6px;width:24px;height:24px;
+  border-radius:50%;border:2px solid rgba(255,255,255,.85);
+  background:rgba(0,0,0,.35);display:none;align-items:center;
+  justify-content:center;font-size:14px;color:#fff;
+  pointer-events:none;box-sizing:border-box}
+.gitem.selected{outline:3px solid #0a84ff;outline-offset:-3px}
+.gitem.selected .check{background:#0a84ff;border-color:#0a84ff;display:flex}
+.gitem.selected::after{content:'';position:absolute;inset:0;
+  background:rgba(10,132,255,.18);pointer-events:none}
+body.selection-mode .gitem .check{display:flex}
 
 #preview{position:absolute;inset:0;z-index:300;background:#000;
   display:none;flex-direction:column}
@@ -138,7 +159,15 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
   <div id="gallery">
     <div id="galleryHeader">
       <button class="btn" id="closeGallery">←</button>
-      <h2>Моя галерея</h2>
+      <h2 id="galleryTitle">Моя галерея</h2>
+      <button class="btn-text" id="enterSelect">Выбрать</button>
+    </div>
+    <div id="galleryHeaderSelect" style="display:none;padding:calc(12px + env(safe-area-inset-top)) 12px 12px;
+      display:none;align-items:center;gap:10px;border-bottom:1px solid #1a1a1a">
+      <button class="btn" id="cancelSelect" style="width:44px;height:44px;font-size:20px">✕</button>
+      <h2 id="selectCount" style="margin:0;font-size:18px;flex:1">Выбрано: 0</h2>
+      <button class="btn-text" id="selectAllBtn">Все</button>
+      <button class="btn-text danger" id="deleteSelected">Удалить</button>
     </div>
     <div id="galleryGrid"></div>
   </div>
@@ -159,6 +188,16 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
       <h2>Настройки</h2>
     </div>
     <div id="settingsBody">
+
+      <div class="setting-row">
+        <label>Качество снимка (высота)</label>
+        <input type="range" id="qualityRange" min="240" max="1440" step="120">
+        <div class="setting-hint">Высота: <b id="qualityValue">720 px</b></div>
+        <div class="setting-hint" style="color:#8a8a8a;font-size:13px">
+          Меньше — меньше файл, хуже детали. Больше — лучше детали, больше файл.
+          Выше возможностей камеры не апскейлит.
+        </div>
+      </div>
 
       <div class="setting-row">
         <label>Серия снимков</label>
@@ -216,14 +255,15 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
 'use strict';
 
 /* ================= Settings ================= */
-const SETTINGS_KEY='camapp_settings_v3';
+const SETTINGS_KEY='camapp_settings_v4';
 const SETTINGS_DEFAULTS={
   holdMs:800,
   holdAction:'current',
   vibro:true,
   burstCount:1,
   torchAuto:false,
-  torchDurMs:300
+  torchDurMs:300,
+  photoHeight:720
 };
 let settings={...SETTINGS_DEFAULTS};
 function loadSettings(){
@@ -318,7 +358,7 @@ async function initStream(){
     return;
   }
   if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
-  const base={facingMode:{ideal:facing},width:{ideal:1280},height:{ideal:720}};
+  const base={facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1080}};
   try{
     stream=await navigator.mediaDevices.getUserMedia({video:base,audio:true});
   }catch(e){
@@ -338,7 +378,6 @@ async function initStream(){
   video.classList.toggle('mirrored',facing==='user');
   try{ await video.play(); }catch(e){}
 
-  // Определяем поддержку вспышки
   const track=stream.getVideoTracks()[0];
   let caps={};
   try{ caps=track.getCapabilities ? track.getCapabilities() : {}; }catch(e){}
@@ -386,6 +425,17 @@ function updateTorchUI(){
   }
 }
 
+/* ================= Capture dimensions ================= */
+function getCaptureDims(){
+  const vw = video.videoWidth|0;
+  const vh = video.videoHeight|0;
+  if(!vw || !vh) return {w:vw, h:vh};
+  const target = settings.photoHeight|0;
+  if(target<=0 || vh<=target) return {w:vw, h:vh};
+  const scale = target / vh;
+  return { w: Math.max(1, Math.round(vw*scale)), h: target };
+}
+
 /* ================= Photo / Burst ================= */
 async function captureBurst(count, opts){
   const silent = !!(opts && opts.silent);
@@ -401,10 +451,11 @@ async function captureBurst(count, opts){
     torchActive = await torchOnNow();
     if(torchActive){
       torchStartTime = Date.now();
-      // небольшая пауза, чтобы авто-экспозиция подстроилась под свет
       await new Promise(r=>setTimeout(r, 180));
     }
   }
+
+  const dims = getCaptureDims();
 
   try{
     for(let i=0;i<count;i++){
@@ -413,8 +464,9 @@ async function captureBurst(count, opts){
         break;
       }
       const c=document.createElement('canvas');
-      c.width=video.videoWidth; c.height=video.videoHeight;
-      c.getContext('2d').drawImage(video,0,0);
+      c.width = dims.w;
+      c.height = dims.h;
+      c.getContext('2d').drawImage(video, 0, 0, dims.w, dims.h);
       const blob = await new Promise(res=>c.toBlob(res,'image/jpeg',0.92));
       if(!blob) break;
 
@@ -425,7 +477,6 @@ async function captureBurst(count, opts){
     }
   } finally {
     if(torchActive){
-      // Держим вспышку как минимум count*torchDurMs от момента включения
       const elapsed = Date.now() - torchStartTime;
       const targetMs = count * settings.torchDurMs;
       const remaining = Math.max(0, targetMs - elapsed);
@@ -519,32 +570,133 @@ async function updateThumb(){
   }
 }
 
-/* ================= Gallery ================= */
+/* ================= Gallery + selection ================= */
 let objectUrls=[];
+let galleryItems=[];        // [{id, url}]
+let selectionMode=false;
+let selectedIds=new Set();
+
+function setSelectionMode(on){
+  selectionMode = !!on;
+  if(!selectionMode) selectedIds.clear();
+  document.body.classList.toggle('selection-mode', selectionMode);
+  document.getElementById('galleryHeader').style.display = selectionMode ? 'none' : 'flex';
+  document.getElementById('galleryHeaderSelect').style.display = selectionMode ? 'flex' : 'none';
+  refreshSelectionUI();
+}
+
+function refreshSelectionUI(){
+  document.getElementById('selectCount').textContent = 'Выбрано: ' + selectedIds.size;
+  document.getElementById('deleteSelected').textContent =
+    selectedIds.size ? ('Удалить ('+selectedIds.size+')') : 'Удалить';
+  document.querySelectorAll('#galleryGrid .gitem').forEach(el=>{
+    const id = parseInt(el.dataset.id,10);
+    el.classList.toggle('selected', selectedIds.has(id));
+  });
+  // кнопка "Все": поменять текст, если всё уже выбрано
+  const allBtn = document.getElementById('selectAllBtn');
+  if(galleryItems.length && selectedIds.size === galleryItems.length){
+    allBtn.textContent = 'Снять';
+  }else{
+    allBtn.textContent = 'Все';
+  }
+}
+
 async function openGallery(){
   const items=await dbAll();
   items.sort((a,b)=>b.date-a.date);
+
   objectUrls.forEach(u=>URL.revokeObjectURL(u));
   objectUrls=[];
+  galleryItems=[];
+
   const grid=document.getElementById('galleryGrid');
   grid.innerHTML='';
+
   if(!items.length){
     grid.innerHTML='<div style="grid-column:1/-1;padding:50px;text-align:center;color:#555;font-size:14px">Здесь пока пусто<br>Сделайте первый снимок</div>';
   }
+
   for(const it of items){
     const url=URL.createObjectURL(it.blob);
     objectUrls.push(url);
+    galleryItems.push({id: it.id, url});
+
     const d=document.createElement('div');
     d.className='gitem';
+    d.dataset.id = it.id;
     if(it.type==='photo'){
-      d.innerHTML='<img src="'+url+'" alt=""><span class="badge">📷</span>';
+      d.innerHTML='<img src="'+url+'" alt=""><span class="badge">📷</span><span class="check">✓</span>';
     }else{
-      d.innerHTML='<video src="'+url+'" muted playsinline preload="metadata"></video><span class="badge">🎬</span>';
+      d.innerHTML='<video src="'+url+'" muted playsinline preload="metadata"></video><span class="badge">🎬</span><span class="check">✓</span>';
     }
-    d.onclick=()=>openPreview(it.id,url);
+    attachItemHandlers(d, it, url);
     grid.appendChild(d);
   }
+
+  setSelectionMode(false);
   document.getElementById('gallery').classList.add('active');
+}
+
+function attachItemHandlers(el, it, url){
+  let holdTimer=null;
+  let holdFired=false;
+  let startX=0, startY=0;
+  const HOLD_MS = 450;
+  const MOVE_TOL = 12;
+
+  el.addEventListener('pointerdown', e=>{
+    startX=e.clientX; startY=e.clientY;
+    holdFired=false;
+    clearTimeout(holdTimer);
+    holdTimer=setTimeout(()=>{
+      holdFired=true;
+      if(!selectionMode){
+        selectionMode=true;
+        selectedIds.clear();
+        selectedIds.add(it.id);
+        setSelectionMode(true);
+      }else{
+        selectedIds.add(it.id);
+        refreshSelectionUI();
+      }
+      if(settings.vibro && navigator.vibrate) navigator.vibrate(15);
+    }, HOLD_MS);
+  });
+
+  el.addEventListener('pointermove', e=>{
+    if(Math.abs(e.clientX-startX)>MOVE_TOL || Math.abs(e.clientY-startY)>MOVE_TOL){
+      clearTimeout(holdTimer);
+    }
+  });
+
+  el.addEventListener('pointerup', ()=>{
+    clearTimeout(holdTimer);
+    if(holdFired) return;
+    if(selectionMode){
+      if(selectedIds.has(it.id)) selectedIds.delete(it.id);
+      else selectedIds.add(it.id);
+      refreshSelectionUI();
+      if(settings.vibro && navigator.vibrate) navigator.vibrate(8);
+    }else{
+      openPreview(it.id, url);
+    }
+  });
+
+  el.addEventListener('pointercancel', ()=>clearTimeout(holdTimer));
+  el.addEventListener('contextmenu', e=>e.preventDefault());
+}
+
+async function deleteSelected(){
+  if(!selectedIds.size) return;
+  if(!confirm('Удалить '+selectedIds.size+' файл(ов)?')) return;
+  for(const id of selectedIds) await dbDel(id);
+  const count = selectedIds.size;
+  selectedIds.clear();
+  setSelectionMode(false);
+  await openGallery();
+  updateThumb();
+  toast('Удалено: '+count);
 }
 
 let previewId=null;
@@ -632,7 +784,6 @@ function toggleBlack(on){
   }
 }
 
-/* --- Жесты на чёрном экране --- */
 const blackEl=document.getElementById('blackScreen');
 let holdTimer=null;
 let holdFired=false;
@@ -640,8 +791,8 @@ let holdStartAt=0;
 let swipeMode=false;
 let swipeStartX=0;
 let swipeStartY=0;
-const SWIPE_EDGE = 70;   // зона правого края, где начинается свайп
-const SWIPE_DIST = 80;   // минимальный сдвиг влево
+const SWIPE_EDGE = 70;
+const SWIPE_DIST = 80;
 
 function runHoldAction(){
   const act = settings.holdAction==='current' ? mode : settings.holdAction;
@@ -670,16 +821,12 @@ function holdFeedback(count){
 blackEl.addEventListener('pointerdown',e=>{
   const rect = blackEl.getBoundingClientRect();
   const fromRightEdge = (e.clientX > rect.right - SWIPE_EDGE);
-
   if(fromRightEdge){
-    // Начинаем свайп-жест, long-press не активируем
     swipeMode = true;
     swipeStartX = e.clientX;
     swipeStartY = e.clientY;
     return;
   }
-
-  // Обычный long-press для снимка
   e.preventDefault();
   swipeMode = false;
   holdFired = false;
@@ -690,7 +837,6 @@ blackEl.addEventListener('pointerdown',e=>{
     runHoldAction();
   }, settings.holdMs);
 });
-
 blackEl.addEventListener('pointermove',e=>{
   if(!swipeMode) return;
   const dx = e.clientX - swipeStartX;
@@ -702,13 +848,9 @@ blackEl.addEventListener('pointermove',e=>{
     if(settings.vibro && navigator.vibrate) navigator.vibrate(15);
   }
 });
-
 function endPress(){
   clearTimeout(holdTimer);
-  if(swipeMode){
-    swipeMode = false;
-  }
-  // Тап больше не выходит из чёрного экрана — только свайп
+  if(swipeMode) swipeMode = false;
 }
 blackEl.addEventListener('pointerup',endPress);
 blackEl.addEventListener('pointercancel',()=>{clearTimeout(holdTimer); swipeMode=false;});
@@ -734,6 +876,9 @@ function openSettings(){
   document.getElementById('torchDurRange').value=settings.torchDurMs;
   document.getElementById('torchDurValue').textContent=settings.torchDurMs+' мс';
   updateTorchDurTotal();
+
+  document.getElementById('qualityRange').value=settings.photoHeight;
+  document.getElementById('qualityValue').textContent=settings.photoHeight+' px';
 
   document.querySelectorAll('#holdActionGroup button').forEach(b=>{
     b.classList.toggle('active', b.dataset.value===settings.holdAction);
@@ -762,6 +907,11 @@ document.getElementById('torchDurRange').addEventListener('input',e=>{
   settings.torchDurMs=parseInt(e.target.value,10);
   document.getElementById('torchDurValue').textContent=settings.torchDurMs+' мс';
   updateTorchDurTotal();
+  persistSettings();
+});
+document.getElementById('qualityRange').addEventListener('input',e=>{
+  settings.photoHeight=parseInt(e.target.value,10);
+  document.getElementById('qualityValue').textContent=settings.photoHeight+' px';
   persistSettings();
 });
 document.querySelectorAll('#holdActionGroup button').forEach(b=>{
@@ -825,13 +975,28 @@ document.getElementById('closeSettings').onclick=()=>{
 document.getElementById('galleryThumb').onclick=openGallery;
 document.getElementById('closeGallery').onclick=()=>{
   document.getElementById('gallery').classList.remove('active');
+  setSelectionMode(false);
   objectUrls.forEach(u=>URL.revokeObjectURL(u));
   objectUrls=[];
+  galleryItems=[];
 };
 document.getElementById('closePreview').onclick=closePreview;
 document.getElementById('saveBtn').onclick=saveToSystem;
 document.getElementById('shareBtn').onclick=shareItem;
 document.getElementById('deleteBtn').onclick=deleteItem;
+
+/* Selection events */
+document.getElementById('enterSelect').onclick=()=>setSelectionMode(true);
+document.getElementById('cancelSelect').onclick=()=>setSelectionMode(false);
+document.getElementById('selectAllBtn').onclick=()=>{
+  if(galleryItems.length && selectedIds.size===galleryItems.length){
+    selectedIds.clear();
+  }else{
+    selectedIds = new Set(galleryItems.map(x=>x.id));
+  }
+  refreshSelectionUI();
+};
+document.getElementById('deleteSelected').onclick=deleteSelected;
 
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible' && stream){
