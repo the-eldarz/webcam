@@ -17,14 +17,12 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
   font-size:22px;cursor:pointer;backdrop-filter:blur(10px);position:relative}
 .btn.active{background:#ffd60a;color:#000;box-shadow:0 0 18px rgba(255,214,10,.55)}
 .btn.disabled{opacity:.35}
-.btn .sub{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);
-  font-size:10px;color:#8a8a8a;white-space:nowrap}
 
 #topbar{position:absolute;top:0;left:0;right:0;z-index:20;
   padding:calc(12px + env(safe-area-inset-top)) 14px 12px;
-  display:flex;justify-content:flex-end;gap:8px;
+  display:flex;justify-content:flex-end;gap:10px;
   background:linear-gradient(to bottom,rgba(0,0,0,.55),transparent)}
-#topbar .btn{width:46px;height:46px;font-size:19px}
+#topbar .btn{width:48px;height:48px;font-size:20px}
 #burstBtn{font-size:14px;font-weight:700}
 
 #controls{position:absolute;bottom:0;left:0;right:0;z-index:20;
@@ -51,15 +49,13 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
   display:none;align-items:center;justify-content:center;cursor:pointer;
   touch-action:none}
 #blackScreen.active{display:flex}
-#blackScreen .hint{color:#1a1a1a;font-size:13px;text-align:center;line-height:1.6;padding:20px}
+#blackScreen .hint{color:#161616;font-size:13px;text-align:center;
+  line-height:1.7;padding:20px;pointer-events:none}
 
-#torchBlackBtn{position:absolute;top:calc(14px + env(safe-area-inset-top));
-  right:14px;width:44px;height:44px;border-radius:50%;
-  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
-  color:#2a2a2a;font-size:20px;display:flex;align-items:center;
-  justify-content:center;cursor:pointer;opacity:.4;transition:opacity .2s,background .2s,color .2s}
-#torchBlackBtn.on{color:#ffd60a;opacity:.85;border-color:rgba(255,214,10,.35)}
-#torchBlackBtn:active{opacity:1}
+/* Подсказка-«ручка» для свайпа у правого края */
+#blackScreen .swipeHandle{position:absolute;right:2px;top:50%;
+  transform:translateY(-50%);width:3px;height:70px;border-radius:2px;
+  background:#141414;pointer-events:none}
 
 #gallery{position:absolute;inset:0;z-index:200;background:#000;
   display:none;flex-direction:column}
@@ -96,7 +92,7 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
 .setting-row label{display:block;font-size:13px;color:#8a8a8a;margin-bottom:12px;
   text-transform:uppercase;letter-spacing:.5px}
 .setting-row input[type=range]{width:100%;accent-color:#0a84ff;height:6px}
-.setting-hint{margin-top:10px;font-size:14px;color:#fff;line-height:1.5}
+.setting-hint{margin-top:8px;font-size:14px;color:#fff;line-height:1.5}
 .setting-hint b{color:#0a84ff}
 .setting-hint .warn{color:#ff9f0a;font-size:13px}
 .radio-group{display:flex;gap:8px;flex-wrap:wrap}
@@ -121,7 +117,6 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
   <div id="topbar">
     <button class="btn" id="burstBtn" title="Серия снимков">1×</button>
     <button class="btn" id="flipBtn" title="Сменить камеру">🔄</button>
-    <button class="btn" id="torchBtn" title="Вспышка">⚡</button>
     <button class="btn" id="settingsBtn" title="Настройки">⚙</button>
     <button class="btn" id="blackBtn" title="Чёрный экран">🌙</button>
   </div>
@@ -133,8 +128,11 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
   </div>
 
   <div id="blackScreen">
-    <div class="hint">тап — выйти<br>удержание — снимок</div>
-    <button id="torchBlackBtn" title="Вспышка">⚡</button>
+    <div class="swipeHandle"></div>
+    <div class="hint">
+      удержание — снимок<br>
+      свайп от правого края влево — выйти
+    </div>
   </div>
 
   <div id="gallery">
@@ -163,7 +161,13 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
     <div id="settingsBody">
 
       <div class="setting-row">
-        <label>Вспышка (фонарик)</label>
+        <label>Серия снимков</label>
+        <input type="range" id="burstRange" min="1" max="9" step="1">
+        <div class="setting-hint">Снимать <b id="burstValue">1</b> фото за раз</div>
+      </div>
+
+      <div class="setting-row">
+        <label>Авто-вспышка при снимке</label>
         <div class="radio-group" id="torchGroup">
           <button data-value="on">Вкл</button>
           <button data-value="off">Выкл</button>
@@ -172,9 +176,10 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
       </div>
 
       <div class="setting-row">
-        <label>Серия снимков</label>
-        <input type="range" id="burstRange" min="1" max="9" step="1">
-        <div class="setting-hint">Снимать <b id="burstValue">1</b> фото за раз</div>
+        <label>Время вспышки на один кадр</label>
+        <input type="range" id="torchDurRange" min="100" max="1500" step="50">
+        <div class="setting-hint">Держать вспышку <b id="torchDurValue">300 мс</b> на кадр</div>
+        <div class="setting-hint">Для серии из <b id="torchDurBurst">1</b> фото — всего <b id="torchDurTotal">300 мс</b></div>
       </div>
 
       <div class="setting-row">
@@ -211,13 +216,14 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#000;color:#
 'use strict';
 
 /* ================= Settings ================= */
-const SETTINGS_KEY='camapp_settings_v2';
+const SETTINGS_KEY='camapp_settings_v3';
 const SETTINGS_DEFAULTS={
   holdMs:800,
   holdAction:'current',
   vibro:true,
   burstCount:1,
-  torchPreferred:false
+  torchAuto:false,
+  torchDurMs:300
 };
 let settings={...SETTINGS_DEFAULTS};
 function loadSettings(){
@@ -301,7 +307,6 @@ let chunks=[];
 let recording=false;
 let recStart=0;
 let recInterval=null;
-let torchOn=false;
 let torchSupported=false;
 
 async function initStream(){
@@ -333,84 +338,51 @@ async function initStream(){
   video.classList.toggle('mirrored',facing==='user');
   try{ await video.play(); }catch(e){}
 
-  // Torch support
+  // Определяем поддержку вспышки
   const track=stream.getVideoTracks()[0];
   let caps={};
   try{ caps=track.getCapabilities ? track.getCapabilities() : {}; }catch(e){}
   torchSupported = !!caps.torch;
 
-  // Restore preferred torch state
-  if(settings.torchPreferred && torchSupported){
-    try{
-      await track.applyConstraints({advanced:[{torch:true}]});
-      torchOn=true;
-    }catch(e){ torchOn=false; }
-  } else {
-    torchOn=false;
-  }
   updateTorchUI();
 }
 
-/* ================= Torch ================= */
-async function setTorch(on, opts){
-  const silent = opts && opts.silent;
-  if(!stream){
-    if(!silent) toast('Камера ещё не готова');
-    return;
-  }
+/* ================= Torch helpers ================= */
+async function torchOnNow(){
+  if(!stream) return false;
   const track=stream.getVideoTracks()[0];
-  if(!track) return;
-
-  let caps={};
-  try{ caps=track.getCapabilities ? track.getCapabilities() : {}; }catch(e){}
-
-  if(!caps.torch){
-    if(!silent) toast('Вспышка недоступна на этой камере');
-    torchOn=false;
-    torchSupported=false;
-    updateTorchUI();
-    return;
-  }
-
+  if(!track) return false;
   try{
-    await track.applyConstraints({advanced:[{torch:on}]});
-    torchOn=on;
-    settings.torchPreferred=on;
-    persistSettings();
-    updateTorchUI();
-    if(settings.vibro && navigator.vibrate) navigator.vibrate(on?[15,40,15]:15);
+    await track.applyConstraints({advanced:[{torch:true}]});
+    return true;
   }catch(e){
-    if(!silent) toast('Не удалось переключить вспышку');
-    console.warn('torch applyConstraints failed:', e);
+    console.warn('torch on fail', e);
+    return false;
   }
 }
-function toggleTorch(){ setTorch(!torchOn); }
+async function torchOffNow(){
+  if(!stream) return;
+  const track=stream.getVideoTracks()[0];
+  if(!track) return;
+  try{
+    await track.applyConstraints({advanced:[{torch:false}]});
+  }catch(e){
+    console.warn('torch off fail', e);
+  }
+}
 
 function updateTorchUI(){
-  const tBtn=document.getElementById('torchBtn');
-  const bBtn=document.getElementById('torchBlackBtn');
-
-  tBtn.classList.toggle('active', torchOn);
-  tBtn.classList.toggle('disabled', !torchSupported && !torchOn);
-
-  bBtn.style.display='flex';
-  bBtn.classList.toggle('on', torchOn);
-  // если не поддерживается — уменьшим яркость
-  bBtn.style.opacity = torchSupported ? (torchOn?0.85:0.4) : 0.18;
-
-  // Обновляем радио-группу в настройках
   document.querySelectorAll('#torchGroup button').forEach(b=>{
     const v = b.dataset.value==='on';
-    b.classList.toggle('active', v===torchOn);
+    b.classList.toggle('active', v===settings.torchAuto);
     b.classList.toggle('disabled', !torchSupported);
   });
-
-  const hint=document.getElementById('torchHint');
+  const hint = document.getElementById('torchHint');
   if(!hint) return;
   if(torchSupported){
-    hint.innerHTML='LED-вспышка доступна на этой камере.';
+    hint.innerHTML = 'LED-вспышка доступна на этой камере.';
   }else{
-    hint.innerHTML='<span class="warn">Вспышка недоступна на этой камере или браузере.</span>';
+    hint.innerHTML = '<span class="warn">Вспышка недоступна на этой камере или в этом браузере.</span>';
   }
 }
 
@@ -420,21 +392,46 @@ async function captureBurst(count, opts){
   count = Math.max(1, Math.min(9, count|0));
   let saved=0;
 
-  for(let i=0;i<count;i++){
-    if(!video.videoWidth){
-      if(!silent) toast('Камера ещё не готова');
-      break;
+  const track = stream ? stream.getVideoTracks()[0] : null;
+  const useTorch = settings.torchAuto && torchSupported && track;
+  let torchStartTime = 0;
+  let torchActive = false;
+
+  if(useTorch){
+    torchActive = await torchOnNow();
+    if(torchActive){
+      torchStartTime = Date.now();
+      // небольшая пауза, чтобы авто-экспозиция подстроилась под свет
+      await new Promise(r=>setTimeout(r, 180));
     }
-    const c=document.createElement('canvas');
-    c.width=video.videoWidth; c.height=video.videoHeight;
-    c.getContext('2d').drawImage(video,0,0);
-    const blob = await new Promise(res=>c.toBlob(res,'image/jpeg',0.92));
-    if(!blob) break;
+  }
 
-    await dbAdd({blob,type:'photo',mime:'image/jpeg',date:Date.now()});
-    saved++;
+  try{
+    for(let i=0;i<count;i++){
+      if(!video.videoWidth){
+        if(!silent) toast('Камера ещё не готова');
+        break;
+      }
+      const c=document.createElement('canvas');
+      c.width=video.videoWidth; c.height=video.videoHeight;
+      c.getContext('2d').drawImage(video,0,0);
+      const blob = await new Promise(res=>c.toBlob(res,'image/jpeg',0.92));
+      if(!blob) break;
 
-    if(i<count-1) await new Promise(r=>setTimeout(r,120));
+      await dbAdd({blob,type:'photo',mime:'image/jpeg',date:Date.now()});
+      saved++;
+
+      if(i<count-1) await new Promise(r=>setTimeout(r,120));
+    }
+  } finally {
+    if(torchActive){
+      // Держим вспышку как минимум count*torchDurMs от момента включения
+      const elapsed = Date.now() - torchStartTime;
+      const targetMs = count * settings.torchDurMs;
+      const remaining = Math.max(0, targetMs - elapsed);
+      if(remaining>0) await new Promise(r=>setTimeout(r, remaining));
+      await torchOffNow();
+    }
   }
 
   await updateThumb();
@@ -447,6 +444,7 @@ async function captureBurst(count, opts){
   }
   return saved;
 }
+
 function flash(){
   const f=document.createElement('div');
   f.style.cssText='position:absolute;inset:0;background:#fff;z-index:50;pointer-events:none;opacity:.9;transition:opacity .25s';
@@ -575,13 +573,12 @@ function extFor(item){
   if((item.mime||'').includes('mp4')) return 'mp4';
   return 'webm';
 }
-function fileName(item, seq){
+function fileName(item){
   const d=new Date(item.date);
   const pad=n=>String(n).padStart(2,'0');
   const stamp=d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+
     pad(d.getHours())+pad(d.getMinutes())+pad(d.getSeconds());
-  const suffix = (seq!=null)?('_'+seq):'';
-  return (item.type==='photo'?'IMG_':'VID_')+stamp+suffix+'.'+extFor(item);
+  return (item.type==='photo'?'IMG_':'VID_')+stamp+'.'+extFor(item);
 }
 async function saveToSystem(){
   if(!previewId) return;
@@ -635,11 +632,16 @@ function toggleBlack(on){
   }
 }
 
-/* --- Long-press --- */
+/* --- Жесты на чёрном экране --- */
 const blackEl=document.getElementById('blackScreen');
 let holdTimer=null;
 let holdFired=false;
 let holdStartAt=0;
+let swipeMode=false;
+let swipeStartX=0;
+let swipeStartY=0;
+const SWIPE_EDGE = 70;   // зона правого края, где начинается свайп
+const SWIPE_DIST = 80;   // минимальный сдвиг влево
 
 function runHoldAction(){
   const act = settings.holdAction==='current' ? mode : settings.holdAction;
@@ -666,35 +668,72 @@ function holdFeedback(count){
 }
 
 blackEl.addEventListener('pointerdown',e=>{
-  if(e.target.closest && e.target.closest('#torchBlackBtn')) return;
+  const rect = blackEl.getBoundingClientRect();
+  const fromRightEdge = (e.clientX > rect.right - SWIPE_EDGE);
+
+  if(fromRightEdge){
+    // Начинаем свайп-жест, long-press не активируем
+    swipeMode = true;
+    swipeStartX = e.clientX;
+    swipeStartY = e.clientY;
+    return;
+  }
+
+  // Обычный long-press для снимка
   e.preventDefault();
-  holdFired=false;
-  holdStartAt=Date.now();
+  swipeMode = false;
+  holdFired = false;
+  holdStartAt = Date.now();
   clearTimeout(holdTimer);
-  holdTimer=setTimeout(()=>{
-    holdFired=true;
+  holdTimer = setTimeout(()=>{
+    holdFired = true;
     runHoldAction();
   }, settings.holdMs);
 });
+
+blackEl.addEventListener('pointermove',e=>{
+  if(!swipeMode) return;
+  const dx = e.clientX - swipeStartX;
+  const dy = e.clientY - swipeStartY;
+  if(dx < -SWIPE_DIST && Math.abs(dx) > Math.abs(dy)*1.2){
+    swipeMode = false;
+    clearTimeout(holdTimer);
+    toggleBlack(false);
+    if(settings.vibro && navigator.vibrate) navigator.vibrate(15);
+  }
+});
+
 function endPress(){
   clearTimeout(holdTimer);
-  if(!holdFired){
-    const dur=Date.now()-holdStartAt;
-    if(dur < settings.holdMs) toggleBlack(false);
+  if(swipeMode){
+    swipeMode = false;
   }
+  // Тап больше не выходит из чёрного экрана — только свайп
 }
 blackEl.addEventListener('pointerup',endPress);
-blackEl.addEventListener('pointercancel',()=>{clearTimeout(holdTimer);});
-blackEl.addEventListener('pointerleave',()=>{clearTimeout(holdTimer);});
+blackEl.addEventListener('pointercancel',()=>{clearTimeout(holdTimer); swipeMode=false;});
+blackEl.addEventListener('pointerleave',()=>{clearTimeout(holdTimer); swipeMode=false;});
 blackEl.addEventListener('contextmenu',e=>e.preventDefault());
 
 /* ================= Settings UI ================= */
+function updateTorchDurTotal(){
+  const total = settings.burstCount * settings.torchDurMs;
+  const b = document.getElementById('torchDurBurst');
+  const t = document.getElementById('torchDurTotal');
+  if(b) b.textContent = settings.burstCount;
+  if(t) t.textContent = total + ' мс';
+}
+
 function openSettings(){
   document.getElementById('holdRange').value=settings.holdMs;
   document.getElementById('holdValue').textContent=settings.holdMs+' мс';
 
   document.getElementById('burstRange').value=settings.burstCount;
   document.getElementById('burstValue').textContent=settings.burstCount;
+
+  document.getElementById('torchDurRange').value=settings.torchDurMs;
+  document.getElementById('torchDurValue').textContent=settings.torchDurMs+' мс';
+  updateTorchDurTotal();
 
   document.querySelectorAll('#holdActionGroup button').forEach(b=>{
     b.classList.toggle('active', b.dataset.value===settings.holdAction);
@@ -716,6 +755,13 @@ document.getElementById('burstRange').addEventListener('input',e=>{
   settings.burstCount=parseInt(e.target.value,10);
   document.getElementById('burstValue').textContent=settings.burstCount;
   document.getElementById('burstBtn').textContent=settings.burstCount+'×';
+  updateTorchDurTotal();
+  persistSettings();
+});
+document.getElementById('torchDurRange').addEventListener('input',e=>{
+  settings.torchDurMs=parseInt(e.target.value,10);
+  document.getElementById('torchDurValue').textContent=settings.torchDurMs+' мс';
+  updateTorchDurTotal();
   persistSettings();
 });
 document.querySelectorAll('#holdActionGroup button').forEach(b=>{
@@ -736,11 +782,13 @@ document.querySelectorAll('#vibroGroup button').forEach(b=>{
 });
 document.querySelectorAll('#torchGroup button').forEach(b=>{
   b.onclick=()=>{
-    if(!torchSupported){
+    if(!torchSupported && b.dataset.value==='on'){
       toast('Вспышка недоступна на этой камере');
       return;
     }
-    setTorch(b.dataset.value==='on');
+    settings.torchAuto = b.dataset.value==='on';
+    persistSettings();
+    updateTorchUI();
   };
 });
 
@@ -769,11 +817,6 @@ document.getElementById('flipBtn').onclick=async()=>{
   facing = facing==='environment'?'user':'environment';
   await initStream();
 };
-document.getElementById('torchBtn').onclick=()=>toggleTorch();
-document.getElementById('torchBlackBtn').addEventListener('click',e=>{
-  e.stopPropagation();
-  toggleTorch();
-});
 document.getElementById('blackBtn').onclick=()=>toggleBlack(true);
 document.getElementById('settingsBtn').onclick=openSettings;
 document.getElementById('closeSettings').onclick=()=>{
