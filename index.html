@@ -190,12 +190,20 @@ body.selection-mode .gitem .check{display:flex}
     <div id="settingsBody">
 
       <div class="setting-row">
+        <label>Режим съёмки</label>
+        <div class="radio-group" id="captureModeGroup">
+          <button data-value="video">Видеокадр (быстро)</button>
+          <button data-value="photo">Hi-Res (качество)</button>
+        </div>
+        <div class="setting-hint" id="captureModeHint"></div>
+      </div>
+
+      <div class="setting-row">
         <label>Качество снимка (высота)</label>
         <input type="range" id="qualityRange" min="240" max="1440" step="120">
         <div class="setting-hint">Высота: <b id="qualityValue">720 px</b></div>
         <div class="setting-hint" style="color:#8a8a8a;font-size:13px">
-          Меньше — меньше файл, хуже детали. Больше — лучше детали, больше файл.
-          Выше возможностей камеры не апскейлит.
+          Применяется только в режиме «Видеокадр».
         </div>
       </div>
 
@@ -203,6 +211,9 @@ body.selection-mode .gitem .check{display:flex}
         <label>Серия снимков</label>
         <input type="range" id="burstRange" min="1" max="9" step="1">
         <div class="setting-hint">Снимать <b id="burstValue">1</b> фото за раз</div>
+        <div class="setting-hint" style="color:#8a8a8a;font-size:13px">
+          Не работает в режиме «Hi-Res».
+        </div>
       </div>
 
       <div class="setting-row">
@@ -255,7 +266,7 @@ body.selection-mode .gitem .check{display:flex}
 'use strict';
 
 /* ================= Settings ================= */
-const SETTINGS_KEY='camapp_settings_v4';
+const SETTINGS_KEY='camapp_settings_v5';
 const SETTINGS_DEFAULTS={
   holdMs:800,
   holdAction:'current',
@@ -263,7 +274,8 @@ const SETTINGS_DEFAULTS={
   burstCount:1,
   torchAuto:false,
   torchDurMs:300,
-  photoHeight:720
+  photoHeight:720,
+  captureMode:'video'   // 'video' | 'photo'
 };
 let settings={...SETTINGS_DEFAULTS};
 function loadSettings(){
@@ -348,6 +360,7 @@ let recording=false;
 let recStart=0;
 let recInterval=null;
 let torchSupported=false;
+let imageCapture=null;
 
 async function initStream(){
   if(!window.isSecureContext){
@@ -358,7 +371,9 @@ async function initStream(){
     return;
   }
   if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
-  const base={facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1080}};
+  
+  // Запрашиваем максимально возможное разрешение потока
+  const base={facingMode:{ideal:facing}, width:{ideal:4096}, height:{ideal:2160}};
   try{
     stream=await navigator.mediaDevices.getUserMedia({video:base,audio:true});
   }catch(e){
@@ -383,7 +398,17 @@ async function initStream(){
   try{ caps=track.getCapabilities ? track.getCapabilities() : {}; }catch(e){}
   torchSupported = !!caps.torch;
 
+  // ImageCapture для режима Hi-Res
+  try{
+    if(window.ImageCapture){
+      imageCapture = new ImageCapture(track);
+    }else{
+      imageCapture = null;
+    }
+  }catch(e){ imageCapture = null; }
+
   updateTorchUI();
+  updateCaptureModeUI();
 }
 
 /* ================= Torch helpers ================= */
@@ -425,6 +450,23 @@ function updateTorchUI(){
   }
 }
 
+function updateCaptureModeUI(){
+  document.querySelectorAll('#captureModeGroup button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.value===settings.captureMode);
+  });
+  const hint = document.getElementById('captureModeHint');
+  if(!hint) return;
+  if(settings.captureMode==='photo'){
+    if(imageCapture){
+      hint.innerHTML = 'Использует аппаратный фотоснимок (лучшее качество). Серия и ползунок разрешения отключены.';
+    }else{
+      hint.innerHTML = '<span class="warn">ImageCapture не поддерживается. Работает как «Видеокадр».</span>';
+    }
+  }else{
+    hint.innerHTML = 'Быстрый способ: кадр из видеопотока. Поддерживает серию до 9 фото.';
+  }
+}
+
 /* ================= Capture dimensions ================= */
 function getCaptureDims(){
   const vw = video.videoWidth|0;
@@ -436,9 +478,31 @@ function getCaptureDims(){
   return { w: Math.max(1, Math.round(vw*scale)), h: target };
 }
 
-/* ================= Photo / Burst ================= */
+/* ================= Hi-Res single photo ================= */
+async function captureHiRes(){
+  if(!imageCapture){
+    toast('Hi-Res недоступен, снимаю как видеокадр');
+    return await captureBurst(1, {forceVideo:true});
+  }
+  try{
+    const blob = await imageCapture.takePhoto();
+    if(!blob) throw new Error('Пустой blob');
+    await dbAdd({blob, type:'photo', mime: blob.type||'image/jpeg', date: Date.now()});
+    await updateThumb();
+    flash();
+    toast('Hi-Res снимок сохранён');
+    return 1;
+  }catch(e){
+    console.warn('ImageCapture.takePhoto fail:', e);
+    toast('Hi-Res не сработал, обычный снимок');
+    return await captureBurst(1, {forceVideo:true});
+  }
+}
+
+/* ================= Photo / Burst (video frame) ================= */
 async function captureBurst(count, opts){
   const silent = !!(opts && opts.silent);
+  const forceVideo = !!(opts && opts.forceVideo);
   count = Math.max(1, Math.min(9, count|0));
   let saved=0;
 
@@ -494,6 +558,16 @@ async function captureBurst(count, opts){
     else toast('Не удалось сохранить');
   }
   return saved;
+}
+
+/* ================= Unified capture entry ================= */
+async function doCapture(count, opts){
+  opts = opts || {};
+  if(settings.captureMode==='photo' && !opts.forceVideo){
+    // Hi-Res: всегда 1 снимок, без серии
+    return await captureHiRes();
+  }
+  return await captureBurst(count, opts);
 }
 
 function flash(){
@@ -572,7 +646,7 @@ async function updateThumb(){
 
 /* ================= Gallery + selection ================= */
 let objectUrls=[];
-let galleryItems=[];        // [{id, url}]
+let galleryItems=[];
 let selectionMode=false;
 let selectedIds=new Set();
 
@@ -593,7 +667,6 @@ function refreshSelectionUI(){
     const id = parseInt(el.dataset.id,10);
     el.classList.toggle('selected', selectedIds.has(id));
   });
-  // кнопка "Все": поменять текст, если всё уже выбрано
   const allBtn = document.getElementById('selectAllBtn');
   if(galleryItems.length && selectedIds.size === galleryItems.length){
     allBtn.textContent = 'Снять';
@@ -797,7 +870,7 @@ const SWIPE_DIST = 80;
 function runHoldAction(){
   const act = settings.holdAction==='current' ? mode : settings.holdAction;
   if(act==='photo'){
-    captureBurst(settings.burstCount, {silent:true}).then(c=>holdFeedback(c));
+    doCapture(settings.burstCount, {silent:true}).then(c=>holdFeedback(c));
   }else if(act==='video'){
     recording ? stopRecording() : startRecording();
     holdFeedback(1);
@@ -889,6 +962,7 @@ function openSettings(){
   });
 
   updateTorchUI();
+  updateCaptureModeUI();
   document.getElementById('settings').classList.add('active');
 }
 document.getElementById('holdRange').addEventListener('input',e=>{
@@ -941,10 +1015,18 @@ document.querySelectorAll('#torchGroup button').forEach(b=>{
     updateTorchUI();
   };
 });
+document.querySelectorAll('#captureModeGroup button').forEach(b=>{
+  b.onclick=()=>{
+    settings.captureMode = b.dataset.value;
+    persistSettings();
+    updateCaptureModeUI();
+    toast(settings.captureMode==='photo' ? 'Режим Hi-Res (1 снимок)' : 'Режим видеокадра');
+  };
+});
 
 /* ================= Events ================= */
 document.getElementById('captureBtn').onclick=()=>{
-  if(mode==='photo') captureBurst(1);
+  if(mode==='photo') doCapture(1);
   else recording?stopRecording():startRecording();
 };
 document.getElementById('modeBtn').onclick=()=>{
@@ -960,7 +1042,11 @@ document.getElementById('burstBtn').onclick=()=>{
     toast('Серия работает только в режиме фото');
     return;
   }
-  captureBurst(settings.burstCount);
+  if(settings.captureMode==='photo'){
+    toast('В Hi-Res серия недоступна');
+    return;
+  }
+  doCapture(settings.burstCount);
 };
 document.getElementById('flipBtn').onclick=async()=>{
   if(recording){ toast('Остановите запись'); return; }
